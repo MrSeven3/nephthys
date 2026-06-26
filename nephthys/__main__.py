@@ -6,7 +6,6 @@ from datetime import datetime
 import matplotlib
 import uvicorn
 from aiohttp import ClientSession
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
 from starlette.applications import Starlette
@@ -21,6 +20,7 @@ from nephthys.utils.logging import parse_level_name
 from nephthys.utils.logging import send_heartbeat
 from nephthys.utils.logging import setup_otel_logging
 from nephthys.utils.slack import app as slack_app
+from nephthys.utils.scheduler import scheduler
 from piccolo_conf import DB
 
 load_dotenv()
@@ -52,7 +52,6 @@ async def main(_app: Starlette):
         env.session = session
         await DB.start_connection_pool()
 
-        scheduler = AsyncIOScheduler(timezone="Europe/London")
         if env.daily_summary:
             scheduler.add_job(send_daily_stats, "cron", hour=0, minute=0)
 
