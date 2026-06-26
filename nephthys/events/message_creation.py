@@ -1,6 +1,6 @@
 import logging
 import string
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from typing import Dict
 
@@ -25,6 +25,7 @@ from nephthys.utils.performance import perf_timer
 from nephthys.utils.slack_user import get_user_profile
 from nephthys.utils.ticket_methods import delete_and_clean_up_ticket
 from nephthys.utils.ticket_methods import ThreadGoneError
+from nephthys.utils.scheduler import scheduler
 
 # Message subtypes that should be handled by on_message (messages with no subtype are always handled)
 ALLOWED_SUBTYPES = ["file_share", "me_message", "thread_broadcast"]
@@ -58,7 +59,7 @@ async def handle_message_sent_to_channel(event: Dict[str, Any], client: AsyncWeb
     )
 
 
-async def handle_message_in_thread(event: Dict[str, Any], db_user: User | None):
+async def handle_message_in_thread(event: Dict[str, Any], db_user: User | None, client: AsyncWebClient):
     """Handle a message sent in a help thread.
 
     - If the message starts with "?" (and is from a helper), run the corresponding macro.
@@ -116,6 +117,22 @@ async def handle_message_in_thread(event: Dict[str, Any], db_user: User | None):
             }
         ).where(Ticket.msg_ts == event["thread_ts"])
 
+    if db_user and not db_user.helper and ticket_message.status != TicketStatus.CLOSED:
+        now = datetime.now()
+        scheduler.add_job(
+            id=str(ticket_message.ticket_ts),
+            replace_existing=True,
+            func=client.chat_postMessage,
+            kwargs={
+                'channel':event['channel'],
+                'thread_ts':str(ticket_message.ticket_ts),
+                'text':'hey! this ticket has been inactive for a day. do you still need help? if not, close the ticket using the "i get it now" button at the top' #TODO: make this customizable somehow (however the other messages like the initial creation faq thingy do it)
+            },
+            next_run_time=datetime.now()+timedelta(days=1), #TODO: make delta configurable
+            trigger="cron",
+            hour=now.hour,
+            minute=now.minute
+        )
 
 async def handle_new_question(
     event: Dict[str, Any], client: AsyncWebClient, db_user: User | None
@@ -350,7 +367,7 @@ async def on_message(event: Dict[str, Any], client: AsyncWebClient):
             await handle_message_sent_to_channel(event, client)
 
     if event.get("thread_ts"):
-        await handle_message_in_thread(event, db_user)
+        await handle_message_in_thread(event, db_user, client)
         return
 
     await handle_new_question(event, client, db_user)
