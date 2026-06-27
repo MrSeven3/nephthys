@@ -1,6 +1,6 @@
 import logging
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from typing import Dict
 
@@ -59,7 +59,9 @@ async def handle_message_sent_to_channel(event: Dict[str, Any], client: AsyncWeb
     )
 
 
-async def handle_message_in_thread(event: Dict[str, Any], db_user: User | None, client: AsyncWebClient):
+async def handle_message_in_thread(
+    event: Dict[str, Any], db_user: User | None, client: AsyncWebClient
+):
     """Handle a message sent in a help thread.
 
     - If the message starts with "?" (and is from a helper), run the corresponding macro.
@@ -117,22 +119,19 @@ async def handle_message_in_thread(event: Dict[str, Any], db_user: User | None, 
             }
         ).where(Ticket.msg_ts == event["thread_ts"])
 
-    if db_user and not db_user.helper and ticket_message.status != TicketStatus.CLOSED:
-        now = datetime.now()
+    if db_user and ticket_message.status != TicketStatus.CLOSED:
         scheduler.add_job(
             id=str(ticket_message.ticket_ts),
             replace_existing=True,
-            func=client.chat_postMessage,
+            func=send_bump_message,
             kwargs={
-                'channel':event['channel'],
-                'thread_ts':str(ticket_message.ticket_ts),
-                'text':'hey! this ticket has been inactive for a day. do you still need help? if not, close the ticket using the "i get it now" button at the top' #TODO: make this customizable somehow (however the other messages like the initial creation faq thingy do it)
+                "channel_id": event["channel"],
+                "thread_ts": str(ticket_message.msg_ts),
             },
-            next_run_time=datetime.now()+timedelta(days=1), #TODO: make delta configurable
-            trigger="cron",
-            hour=now.hour,
-            minute=now.minute
+            trigger="date",
+            next_run_time=datetime.now(timezone.utc) + timedelta(minutes=1),
         )
+
 
 async def handle_new_question(
     event: Dict[str, Any], client: AsyncWebClient, db_user: User | None
@@ -342,6 +341,14 @@ async def send_user_facing_message(
         await client.chat_delete(channel=event["channel"], ts=msg_ts)
         raise ThreadGoneError()
     return msg
+
+
+async def send_bump_message(channel_id: str, thread_ts: str):
+    await env.slack_client.chat_postMessage(
+        channel=channel_id,
+        thread_ts=thread_ts,
+        text='hey! this ticket has been inactive for a day. do you still need help? if not, close the ticket using the "i get it now" button at the top',
+    )
 
 
 async def on_message(event: Dict[str, Any], client: AsyncWebClient):
