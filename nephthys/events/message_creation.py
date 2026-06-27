@@ -129,7 +129,7 @@ async def handle_message_in_thread(
                 "thread_ts": str(ticket_message.msg_ts),
             },
             trigger="date",
-            next_run_time=datetime.now(timezone.utc) + timedelta(minutes=1),
+            next_run_time=datetime.now(timezone.utc) + timedelta(days=1),
         )
 
 
