@@ -347,7 +347,7 @@ async def send_bump_message(channel_id: str, thread_ts: str):
     await env.slack_client.chat_postMessage(
         channel=channel_id,
         thread_ts=thread_ts,
-        text='hey! this ticket has been inactive for a day. do you still need help? if not, close the ticket using the "i get it now" button at the top',
+        text='Hey! This ticket has been inactive for a day. Do you still need help? If not, please close this ticket using the "i get it now" button at the top. Thank You.',
     )
 
 
