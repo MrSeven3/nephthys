@@ -119,7 +119,7 @@ async def handle_message_in_thread(
             }
         ).where(Ticket.msg_ts == event["thread_ts"])
 
-    if db_user and ticket_message.status != TicketStatus.CLOSED:
+    if db_user and not db_user.helper and ticket_message.status != TicketStatus.CLOSED:
         scheduler.add_job(
             id=str(ticket_message.ticket_ts),
             replace_existing=True,
